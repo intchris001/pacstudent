@@ -32,30 +32,36 @@ public static class A3AnimatorBuilder
     {
         var pacCtrl = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(Path.Combine(AnimBase, "PacStudent/PacStudent.controller"));
         var gCtrl = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(Path.Combine(AnimBase, "Ghosts/GhostAnimator_.controller"));
-        if (pacCtrl != null)
+        // Ensure PacStudent has SpriteRenderer + Animator + default sprite
+        var pac = GameObject.Find("PacStudent");
+        if (pac != null)
         {
-            var pac = GameObject.Find("PacStudent");
-            if (pac != null)
+            var sr = pac.GetComponent<SpriteRenderer>();
+            if (sr == null) sr = pac.AddComponent<SpriteRenderer>();
+            sr.sortingOrder = 10; // render above walls
+            var an = pac.GetComponent<Animator>();
+            if (an == null) an = pac.AddComponent<Animator>();
+            if (pacCtrl != null) an.runtimeAnimatorController = pacCtrl;
+            var left0 = LoadSprite("pac_left_0.png");
+            if (left0 != null) sr.sprite = left0;
+        }
+        // Ensure Ghosts have SpriteRenderer + Animator + default sprite
+        for (int i=1;i<=4;i++)
+        {
+            var g = GameObject.Find($"Ghost_{i}");
+            if (g != null)
             {
-                var an = pac.GetComponent<Animator>();
-                if (an == null) an = pac.AddComponent<Animator>();
-                an.runtimeAnimatorController = pacCtrl;
+                var sr = g.GetComponent<SpriteRenderer>();
+                if (sr == null) sr = g.AddComponent<SpriteRenderer>();
+                sr.sortingOrder = 9;
+                var an = g.GetComponent<Animator>();
+                if (an == null) an = g.AddComponent<Animator>();
+                if (gCtrl != null) an.runtimeAnimatorController = gCtrl;
+                var body = LoadSprite("ghost_body.png");
+                if (body != null) sr.sprite = body;
             }
         }
-        if (gCtrl != null)
-        {
-            for (int i=1;i<=4;i++)
-            {
-                var g = GameObject.Find($"Ghost_{i}");
-                if (g != null)
-                {
-                    var an = g.GetComponent<Animator>();
-                    if (an == null) an = g.AddComponent<Animator>();
-                    an.runtimeAnimatorController = gCtrl;
-                }
-            }
-        }
-        Debug.Log("Assigned animators to scene objects (if found).");
+        Debug.Log("Assigned animators and sprite renderers to scene objects (if found).");
     }
 
     private static void BuildPacStudentAnimator()

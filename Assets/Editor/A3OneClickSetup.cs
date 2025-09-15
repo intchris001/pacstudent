@@ -4,6 +4,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEditor.Animations;
 using System.IO;
+using UnityEngine.SceneManagement;
 
 public static class A3OneClickSetup
 {
@@ -12,6 +13,9 @@ public static class A3OneClickSetup
     {
         try
         {
+            // 0) Clean any previous auto-generated or duplicate objects
+            CleanScene();
+
             // 1) Generate sprites and audio
             A3SpriteGenerator.GenerateAll();
             A3AudioGenerator.GenerateAllAudio();
@@ -40,12 +44,89 @@ public static class A3OneClickSetup
             EditorSceneManager.SaveOpenScenes();
             EditorApplication.isPlaying = true;
 
-            Debug.Log("A3 One-Click: Completed. Game is now running.");
+            Debug.Log("A3 One-Click: Cleaned scene, configured everything, and started Play mode.");
         }
         catch (System.Exception ex)
         {
             Debug.LogError("A3 One-Click failed: " + ex.Message + "\n" + ex.StackTrace);
         }
+    }
+
+    private static void CleanScene()
+    {
+        var scene = SceneManager.GetActiveScene();
+        if (!scene.IsValid()) return;
+
+        // Names/prefixes to remove entirely
+        string[] removeExact = new[] { "GameManager", "AudioManager", "LevelGenerator", "ManualLevel", "HUD" };
+        string[] removePrefix = new[] { "Ghost_", "Corner", "GeneratedLevel" };
+
+        // Also remove by component types (if user改过命名)
+        System.Type[] removeComponents = new[]
+        {
+            typeof(PacmanGame.Core.GameManager),
+            typeof(PacmanGame.Audio.AudioManager),
+            typeof(PacmanGame.Level.LevelGenerator),
+            typeof(PacmanGame.Player.PacStudentDemoMover),
+            typeof(PacmanGame.Player.PacmanController)
+        };
+
+        var roots = scene.GetRootGameObjects();
+        foreach (var go in roots)
+        {
+            if (go == null) continue;
+            // Match exact names
+            foreach (var name in removeExact)
+            {
+                if (go.name == name)
+                {
+                    Object.DestroyImmediate(go);
+                    goto NextRoot;
+                }
+            }
+            // Match prefixes
+            foreach (var pre in removePrefix)
+            {
+                if (go.name.StartsWith(pre))
+                {
+                    Object.DestroyImmediate(go);
+                    goto NextRoot;
+                }
+            }
+            // Match by component types
+            foreach (var t in removeComponents)
+            {
+                if (go.GetComponentInChildren(t, true) != null)
+                {
+                    Object.DestroyImmediate(go);
+                    goto NextRoot;
+                }
+            }
+        NextRoot:;
+        }
+
+        // Also try to find any remaining by FindObjectsOfType (non-root spawned earlier)
+        foreach (var comp in removeComponents)
+        {
+            var comps = Object.FindObjectsOfType(comp, true);
+            foreach (var c in comps)
+            {
+                if (c is Component compC) Object.DestroyImmediate(compC.gameObject);
+                else if (c is ScriptableObject) { /* ignore */ }
+            }
+        }
+
+        // Remove all objects named exactly "GeneratedLevel"
+        var all = Object.FindObjectsOfType<GameObject>(true);
+        foreach (var g in all)
+        {
+            if (g.name == "GeneratedLevel" || g.name.StartsWith("GeneratedLevel"))
+            {
+                Object.DestroyImmediate(g);
+            }
+        }
+
+        Debug.Log("A3 One-Click: Scene cleaned (removed previous auto-generated and duplicate objects).");
     }
 
     private static void AssignLevelGeneratorSprites()
