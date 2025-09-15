@@ -46,6 +46,15 @@ namespace PacmanGame.Ghosts
             var pc = FindObjectOfType<PacmanGame.Player.PacmanController>();
             if (pc != null) pacman = pc.transform;
 
+            // If no LevelGrid is present (e.g., A3 manual layout phase), disable this controller safely
+            if (grid == null)
+            {
+                spawnPosition = transform.position;
+                CurrentState = GhostState.Scatter;
+                enabled = false; // do not run Update logic
+                return;
+            }
+
             currentCell = grid.WorldToGrid(transform.position);
             targetWorldPos = grid.GridToWorld(currentCell.x, currentCell.y);
             transform.position = targetWorldPos;
@@ -58,6 +67,7 @@ namespace PacmanGame.Ghosts
 
         private void cacheGateCell()
         {
+            if (grid == null) return;
             for (int y = 0; y < grid.Height; y++)
             {
                 for (int x = 0; x < grid.Width; x++)

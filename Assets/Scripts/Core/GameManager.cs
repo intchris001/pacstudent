@@ -48,7 +48,12 @@ namespace PacmanGame.Core
             pacman = FindObjectOfType<PacmanController>();
             if (pacman == null)
             {
-                Debug.LogWarning("GameManager: No PacmanController found in scene.");
+                // If using A3 demo mover (no input controller), suppress warning
+                var demo = Object.FindObjectOfType<PacStudentDemoMover>();
+                if (demo == null)
+                {
+                    Debug.LogWarning("GameManager: No PacmanController found in scene.");
+                }
             }
 
             lives = startingLives;
