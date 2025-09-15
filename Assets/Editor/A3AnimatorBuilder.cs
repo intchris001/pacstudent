@@ -161,9 +161,12 @@ public static class A3AnimatorBuilder
 
     private static void AddNext(AnimatorController ctrl, AnimatorState from, AnimatorState to)
     {
-        var t = ctrl.layers[0].stateMachine.AddTransition(from, to);
-        t.hasExitTime = true; t.exitTime = 1f; // at end of clip (3s)
-        t.hasFixedDuration = true; t.duration = 0.1f;
+        // Create transition from a state to another state using AnimatorState API (not AnimatorStateMachine)
+        var t = from.AddTransition(to);
+        t.hasExitTime = true; // transition occurs at the end of the current clip
+        t.exitTime = 1f;      // normalized time
+        t.hasFixedDuration = true;
+        t.duration = 0.1f;    // brief blend
     }
 
     private static Sprite LoadSprite(string file)
