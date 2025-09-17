@@ -39,19 +39,22 @@ namespace PacmanGame.Ghosts
         private Vector2Int? gateCell;
 
         private Vector3 spawnPosition;
+        private bool initialized = false;
 
         private void Start()
         {
+            TryInit();
+        }
+
+        private void TryInit()
+        {
+            if (initialized) return;
             grid = LevelGrid.Instance ?? FindObjectOfType<LevelGrid>();
             var pc = FindObjectOfType<PacmanGame.Player.PacmanController>();
             if (pc != null) pacman = pc.transform;
-
-            // If no LevelGrid is present (e.g., A3 manual layout phase), disable this controller safely
             if (grid == null)
             {
-                spawnPosition = transform.position;
-                CurrentState = GhostState.Scatter;
-                enabled = false; // do not run Update logic
+                // Wait until LevelLoader creates LevelGrid in its Start()
                 return;
             }
 
@@ -63,6 +66,7 @@ namespace PacmanGame.Ghosts
             stateTimer = scatterDurations[0];
             CurrentState = GhostState.Scatter;
             cacheGateCell();
+            initialized = true;
         }
 
         private void cacheGateCell()
@@ -79,6 +83,8 @@ namespace PacmanGame.Ghosts
 
         private void Update()
         {
+            if (!initialized) { TryInit(); if (!initialized) return; }
+
             UpdateTimers();
 
             // At cell center: choose next direction
@@ -90,9 +96,17 @@ namespace PacmanGame.Ghosts
                 Dir nextDir = ChooseNextDirection();
                 currentDir = nextDir;
 
-                Vector2Int nextCell = currentCell + DirectionUtil.ToVec(currentDir);
-                nextCell = grid.WrapHorizontal(nextCell);
-                if (!grid.InBounds(nextCell.x, nextCell.y))
+                Vector2Int pre = currentCell + DirectionUtil.ToVec(currentDir);
+                Vector2Int nextCell = grid.WrapHorizontal(pre);
+
+                // Instant teleport if wrapping occurred at tunnels
+                if (grid.enableHorizontalWrap && (pre.x != nextCell.x) && (pre.x < 0 || pre.x >= grid.Width))
+                {
+                    transform.position = grid.GridToWorld(nextCell.x, nextCell.y);
+                    currentCell = nextCell;
+                }
+
+                if (!grid.InBounds(nextCell.x, nextCell.y) || !grid.IsWalkableForGhost(nextCell.x, nextCell.y))
                 {
                     currentDir = Dir.None;
                     targetWorldPos = transform.position;
@@ -252,9 +266,23 @@ namespace PacmanGame.Ghosts
 
         public void ResetToSpawn()
         {
+            // Ensure services are ready
+            if (!initialized) TryInit();
+
             transform.position = spawnPosition;
-            currentCell = grid.WorldToGrid(transform.position);
-            targetWorldPos = grid.GridToWorld(currentCell.x, currentCell.y);
+
+            if (grid != null)
+            {
+                currentCell = grid.WorldToGrid(transform.position);
+                targetWorldPos = grid.GridToWorld(currentCell.x, currentCell.y);
+            }
+            else
+            {
+                // Fallback until grid exists next frame
+                currentCell = Vector2Int.zero;
+                targetWorldPos = transform.position;
+            }
+
             currentDir = Dir.Left;
             CurrentState = GhostState.Scatter;
             stateTimer = scatterDurations[0];

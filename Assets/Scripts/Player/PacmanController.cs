@@ -5,102 +5,126 @@ using PacmanGame.Core;
 
 namespace PacmanGame.Player
 {
-    [RequireComponent(typeof(Collider2D))]
+    [RequireComponent(typeof(CircleCollider2D))]
     public class PacmanController : MonoBehaviour
     {
         [Header("Movement")]
         public float moveSpeed = 6f; // units per second
         public bool useInterpolation = true;
 
+        [Header("Animation")]
+        public float animationFps = 10f;
+        public Sprite[] spritesUp;
+        public Sprite[] spritesDown;
+        public Sprite[] spritesLeft;
+        public Sprite[] spritesRight;
+
+        private int animationFrame = 0;
+        private float animationTimer = 0f;
+
+        private SpriteRenderer spriteRenderer;
+        private Rigidbody2D rb;
         private LevelGrid grid;
-        private LevelLoader level;
+        private LevelLoader level; // Note: This may be null when using LevelGenerator
+        private LevelGenerator generator;
 
         private Dir currentDir = Dir.Left;
         private Dir bufferedDir = Dir.None;
 
         private Vector2 targetWorldPos; // center of current target cell
         private Vector2Int currentCell; // grid cell we're moving from/to
+        private bool initialized = false;
 
         private void Start()
         {
-            grid = LevelGrid.Instance;
-            level = LevelLoader.Instance;
-            if (grid == null || level == null)
-            {
-                grid = FindObjectOfType<LevelGrid>();
-                level = FindObjectOfType<LevelLoader>();
-            }
+            TryInit();
+        }
 
-            // Initialize grid position to nearest cell center
+        private void TryInit()
+        {
+            if (initialized) return;
+            grid = FindObjectOfType<LevelGrid>();
+            level = FindObjectOfType<LevelLoader>();
+            generator = FindObjectOfType<LevelGenerator>();
+            spriteRenderer = GetComponent<SpriteRenderer>();
+            if (grid == null)
+            {
+                return; // Grid not ready yet.
+            }
             currentCell = grid.WorldToGrid(transform.position);
             targetWorldPos = grid.GridToWorld(currentCell.x, currentCell.y);
             transform.position = targetWorldPos;
+            initialized = true;
+            UpdateSprite();
         }
 
         private void Update()
         {
+            if (!initialized) { TryInit(); if (!initialized) return; }
             ReadInput();
 
-            // If at center of a cell (or very close), decide next move based on buffered input and walls
-            if ((Vector2)transform.position == targetWorldPos || Vector2.Distance(transform.position, targetWorldPos) < 0.01f)
+            // At or near a cell center, ready for a decision
+            float centerTol = (grid != null ? Mathf.Max(0.01f, grid.CellSize * 0.05f) : 0.05f);
+            if (Vector2.Distance(transform.position, targetWorldPos) <= centerTol)
             {
-                transform.position = targetWorldPos; // snap
+                transform.position = targetWorldPos; // Snap to be precise
                 currentCell = grid.WorldToGrid(transform.position);
 
-                // Try to apply buffered direction if possible
+                // Consume pellet
+                if (level != null && level.TryConsumePellet(currentCell, out bool power))
+                {
+                    GameManager.Instance?.OnPelletConsumed(power);
+                }
+
+                // Decide next move
+                // 1. Try buffered direction first.
                 if (bufferedDir != Dir.None && CanMove(bufferedDir))
                 {
                     currentDir = bufferedDir;
                     bufferedDir = Dir.None;
+                    UpdateSprite();
                 }
-                // If current direction blocked, stop or turn if possible
-                if (!CanMove(currentDir))
+                // 2. If no new direction, check if we can keep going in the current one.
+                else if (!CanMove(currentDir))
                 {
-                    currentDir = Dir.None;
+                    currentDir = Dir.None; // Stop if blocked
+                    UpdateSprite();
                 }
 
-                // Set next target world position
+                // Set next target if we are moving
                 if (currentDir != Dir.None)
                 {
-                    Vector2Int nextCell = currentCell + DirectionUtil.ToVec(currentDir);
-                    // Wrap horizontally through tunnels
-                    nextCell = grid.WrapHorizontal(nextCell);
-                    // If wrapping occurred beyond bounds vertically, block
-                    if (!grid.InBounds(nextCell.x, nextCell.y))
+                    Vector2Int pre = currentCell + DirectionUtil.ToVec(currentDir);
+                    Vector2Int nextCell = grid.WrapHorizontal(pre);
+
+                    // Instant teleport if wrapping occurred
+                    if (grid.enableHorizontalWrap && (pre.x != nextCell.x) && (pre.x < 0 || pre.x >= grid.Width))
                     {
+                        transform.position = grid.GridToWorld(nextCell.x, nextCell.y);
+                        currentCell = nextCell;
+                    }
+
+                    if (!grid.IsWalkableForPacman(nextCell.x, nextCell.y))
+                    {
+                        // Safety guard: never step into walls even if something went out of sync
                         currentDir = Dir.None;
+                        targetWorldPos = transform.position;
                     }
                     else
                     {
                         targetWorldPos = grid.GridToWorld(nextCell.x, nextCell.y);
                     }
                 }
-                else
-                {
-                    targetWorldPos = transform.position;
-                }
-
-                // Consume pellet on entering the cell center
-                if (level != null)
-                {
-                    bool power;
-                    if (level.TryConsumePellet(currentCell, out power))
-                    {
-                        GameManager.Instance?.OnPelletConsumed(power);
-                    }
-                }
             }
 
-            // Move towards target
-            if (useInterpolation)
-            {
-                transform.position = Vector2.MoveTowards(transform.position, targetWorldPos, moveSpeed * Time.deltaTime);
-            }
-            else
-            {
-                Vector2 dir = (targetWorldPos - (Vector2)transform.position).normalized;
-                transform.position = (Vector2)transform.position + dir * moveSpeed * Time.deltaTime;
-            }
+            // Always move towards the current target
+            transform.position = Vector2.MoveTowards(transform.position, targetWorldPos, moveSpeed * Time.deltaTime);
+
+            // Animate sprite based on direction and time
+            UpdateAnimation(currentDir);
+
+            // Try consume pellets on the current cell and near the next cell even when not exactly centered
+            ConsumeNearbyPellets();
 
             // Check collision with ghosts
             CheckGhostCollision();
@@ -138,11 +162,83 @@ namespace PacmanGame.Player
 
         public void ResetToSpawn(Vector3 spawnPos)
         {
+            if (!initialized) TryInit();
+
             transform.position = spawnPos;
-            currentCell = grid.WorldToGrid(transform.position);
-            targetWorldPos = grid.GridToWorld(currentCell.x, currentCell.y);
+            if (grid != null)
+            {
+                currentCell = grid.WorldToGrid(transform.position);
+                targetWorldPos = grid.GridToWorld(currentCell.x, currentCell.y);
+            }
+            else
+            {
+                targetWorldPos = transform.position;
+            }
             currentDir = Dir.Left;
             bufferedDir = Dir.None;
+            UpdateSprite();
+        }
+
+        private void UpdateSprite()
+        {
+            if (spriteRenderer == null) return;
+            animationFrame = 0;
+            animationTimer = 0f;
+            var frames = GetFramesForDir(currentDir);
+            if (frames != null && frames.Length > 0) spriteRenderer.sprite = frames[0];
+        }
+
+        private void UpdateAnimation(Dir dir)
+        {
+            if (spriteRenderer == null) return;
+            var frames = GetFramesForDir(dir);
+            if (frames == null || frames.Length == 0)
+            {
+                return;
+            }
+            if (dir == Dir.None)
+            {
+                spriteRenderer.sprite = frames[0];
+                return;
+            }
+
+            animationTimer += Time.deltaTime;
+            float frameDuration = Mathf.Max(0.01f, 1f / animationFps);
+            while (animationTimer >= frameDuration)
+            {
+                animationTimer -= frameDuration;
+                animationFrame = (animationFrame + 1) % frames.Length;
+            }
+            spriteRenderer.sprite = frames[animationFrame];
+                private void ConsumeNearbyPellets()
+        {
+            if (level == null || grid == null) return;
+            // Consume on current cell
+            Vector2Int here = grid.WorldToGrid(transform.position);
+            if (level.TryConsumePellet(here, out bool power1))
+            {
+                GameManager.Instance?.OnPelletConsumed(power1);
+            }
+            // Also try the target cell (the one we're moving toward)
+            Vector2Int towards = grid.WorldToGrid(targetWorldPos);
+            if (level.TryConsumePellet(towards, out bool power2))
+            {
+                GameManager.Instance?.OnPelletConsumed(power2);
+            }
+        }
+    }
+}
+
+        private Sprite[] GetFramesForDir(Dir dir)
+        {
+            switch (dir)
+            {
+                case Dir.Up: return spritesUp;
+                case Dir.Down: return spritesDown;
+                case Dir.Left: return spritesLeft;
+                case Dir.Right: return spritesRight;
+                default: return spritesLeft; // default idle facing left
+            }
         }
     }
 }

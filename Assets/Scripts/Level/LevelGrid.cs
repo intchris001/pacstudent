@@ -16,6 +16,7 @@ namespace PacmanGame.Level
         // Dimensions (width = columns, height = rows)
         public int Width { get; private set; }
         public int Height { get; private set; }
+        public float CellSize => cellSize;
 
         // Raw map content from CSV's letter section
         private char[,] letterMap; // e,x,o,c,i,s,p,g,t
@@ -23,6 +24,9 @@ namespace PacmanGame.Level
         // Passability caches
         private bool[,] passableForPacman;
         private bool[,] passableForGhost;
+
+        [Header("Rules")]
+        [SerializeField] public bool enableHorizontalWrap = false; // disable by default unless tunnels are desired
 
         [Header("Debug")]
         [SerializeField] private bool drawGizmos = false;
@@ -119,6 +123,7 @@ namespace PacmanGame.Level
 
         public Vector2Int WrapHorizontal(Vector2Int grid)
         {
+            if (!enableHorizontalWrap) return grid;
             // Allow wrap horizontally through tunnels if leaving bounds
             if (grid.x < 0) grid.x = Width - 1;
             else if (grid.x >= Width) grid.x = 0;

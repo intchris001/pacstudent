@@ -34,6 +34,8 @@ public class PacStudentDemoMover : MonoBehaviour
             };
         }
         SetupNextSegment();
+        // Snap to starting point so movement可见
+        transform.position = startPos;
     }
 
     private void SetupNextSegment()

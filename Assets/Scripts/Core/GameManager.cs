@@ -20,7 +20,7 @@ namespace PacmanGame.Core
 
         [Header("Spawns")]
         public Transform pacmanSpawn;
-        public List<GhostController> ghosts = new();
+        public List<GhostController> ghosts = new List<GhostController>();
 
         [Header("Runtime State")]
         public int score = 0;

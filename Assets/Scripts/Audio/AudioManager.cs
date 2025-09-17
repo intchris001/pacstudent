@@ -45,6 +45,9 @@ namespace PacmanGame.Audio
             sfxGo.transform.SetParent(transform);
             sfxSource = sfxGo.AddComponent<AudioSource>();
             sfxSource.loop = false;
+
+            // Editor convenience: auto-wire clips if left unassigned
+            AutoAssignAudioClipsInEditor();
         }
 
         private void Update()
@@ -72,7 +75,7 @@ namespace PacmanGame.Audio
             if (introMusic != null)
             {
                 PlayMusic(introMusic, false);
-                introTimer = 3f; // or clip end, whichever first
+                introTimer = Mathf.Min(3f, introMusic.length);
                 playingIntro = true;
             }
             else
@@ -119,6 +122,32 @@ namespace PacmanGame.Audio
         public void PlaySfxDeath()
         {
             if (sfxDeath != null) sfxSource.PlayOneShot(sfxDeath, 0.9f);
+        }
+
+        private void AutoAssignAudioClipsInEditor()
+        {
+#if UNITY_EDITOR
+            // Only in the editor, try to auto-fill any missing clips by known asset paths
+            if (introMusic == null)
+                introMusic = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio Clips/intro.wav");
+            if (startSceneMusic == null)
+                startSceneMusic = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio Clips/startscene.wav");
+            if (ghostsNormalMusic == null)
+                ghostsNormalMusic = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio Clips/ghosts_normal.wav");
+            if (ghostsFrightenedMusic == null)
+                ghostsFrightenedMusic = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio Clips/ghosts_fright.wav");
+            if (ghostsDeadPresentMusic == null)
+                ghostsDeadPresentMusic = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio Clips/ghosts_dead.wav");
+
+            if (sfxMove == null)
+                sfxMove = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio Clips/sfx_move.wav");
+            if (sfxPellet == null)
+                sfxPellet = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio Clips/sfx_pellet.wav");
+            if (sfxWall == null)
+                sfxWall = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio Clips/sfx_wall.wav");
+            if (sfxDeath == null)
+                sfxDeath = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio Clips/sfx_death.wav");
+#endif
         }
     }
 }

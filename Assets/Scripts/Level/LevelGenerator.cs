@@ -59,6 +59,15 @@ namespace PacmanGame.Level
 
         public void Generate()
         {
+            // Ensure there is only ONE root named generatedRootName
+            var existingRoot = GameObject.Find(generatedRootName);
+            if (existingRoot != null && generatedParent == null)
+            {
+                // Remove the existing root entirely so we don't end up with "GeneratedLevel (1)"
+                if (Application.isPlaying) Destroy(existingRoot);
+                else DestroyImmediate(existingRoot);
+            }
+
             if (generatedParent == null)
             {
                 var go = new GameObject(generatedRootName);
@@ -66,8 +75,14 @@ namespace PacmanGame.Level
             }
             else
             {
-                // Clear previous
-                foreach (Transform c in generatedParent) Destroy(c.gameObject);
+                // Clear previous children under provided parent
+                var toDelete = new System.Collections.Generic.List<GameObject>();
+                foreach (Transform c in generatedParent) toDelete.Add(c.gameObject);
+                foreach (var g in toDelete)
+                {
+                    if (Application.isPlaying) Destroy(g);
+                    else DestroyImmediate(g);
+                }
                 root = generatedParent;
             }
 
@@ -122,6 +137,13 @@ namespace PacmanGame.Level
                     Set(my, x, MirrorTile(src, horizontal:false));
                 }
             }
+            // A3-SPECIFIC: Create horizontal tunnels after mirroring
+            int tunnelY = 14; // The Y-index of the tunnel in the full map
+            if (tunnelY < fullH)
+            {
+                Set(tunnelY, 0, 0); // Left tunnel entrance
+                Set(tunnelY, fullW - 1, 0); // Right tunnel entrance
+            }
         }
 
         private int MirrorTile(int v, bool horizontal)
@@ -149,6 +171,14 @@ namespace PacmanGame.Level
                     float rotZ = ComputeRotationFor(x, y, v);
                     go.transform.rotation = Quaternion.Euler(0, 0, rotZ);
                     go.transform.position = GridToWorld(x, y);
+
+                        // Add a solid collider for wall-like tiles so physics queries can detect them
+                        if (v == 1 || v == 2 || v == 3 || v == 4 || v == 7 || v == 8)
+                        {
+                            var bc = go.AddComponent<BoxCollider2D>();
+                            bc.isTrigger = false; // treat as solid
+                            bc.size = new Vector2(tileWorldSize * 0.98f, tileWorldSize * 0.98f);
+                        }
                 }
             }
         }
@@ -249,17 +279,57 @@ namespace PacmanGame.Level
         {
             var cam = Camera.main;
             if (cam == null || !cam.orthographic) return;
+
             int H = fullMap.GetLength(0);
             int W = fullMap.GetLength(1);
-            Vector3 center = GridToWorld(W / 2, H / 2);
+
+            // Compute exact bounds center, not a tile center (avoids 0.5-tile bias)
+            float levelWorldWidth = W * tileWorldSize;
+            float levelWorldHeight = H * tileWorldSize;
+            Vector3 center = (Vector3)topLeftWorld + new Vector3(levelWorldWidth * 0.5f, -levelWorldHeight * 0.5f, 0f);
             cam.transform.position = new Vector3(center.x, center.y, cam.transform.position.z);
 
-            float halfWidth = (W * tileWorldSize) * 0.5f;
-            float halfHeight = (H * tileWorldSize) * 0.5f;
+            float halfWidth = levelWorldWidth * 0.5f;
+            float halfHeight = levelWorldHeight * 0.5f;
             float aspect = cam.aspect;
+
             float sizeForHeight = halfHeight;
             float sizeForWidth = halfWidth / aspect;
-            cam.orthographicSize = Mathf.Max(sizeForHeight, sizeForWidth) + 0.5f;
+
+            // Small padding so edges never clip regardless of aspect rounding
+            float padding = Mathf.Max(0.5f, tileWorldSize * 0.6f);
+            cam.orthographicSize = Mathf.Max(sizeForHeight, sizeForWidth) + padding;
+        }
+
+        // Expose the generated map as a letter map that matches LevelLoader semantics
+        public char[,] GetLetterMapFromGenerated()
+        {
+            if (fullMap == null) BuildFullMap();
+            if (fullMap == null) return null;
+            int H = fullMap.GetLength(0);
+            int W = fullMap.GetLength(1);
+            var letters = new char[H, W];
+            for (int y=0; y<H; y++)
+            {
+                for (int x=0; x<W; x++)
+                {
+                    int v = fullMap[y,x];
+                    letters[y,x] = v switch
+                    {
+                        0 => 'e',
+                        1 => 'x',
+                        2 => 'o',
+                        3 => 'c',
+                        4 => 'i',
+                        5 => 's',
+                        6 => 'p',
+                        7 => 't',
+                        8 => 'g',
+                        _ => 'e'
+                    };
+                }
+            }
+            return letters;
         }
     }
 }
