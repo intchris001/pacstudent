@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEngine;
+using System.Collections.Generic;
 
 public static class ManualLevelBuilder
 {
@@ -27,59 +28,73 @@ public static class ManualLevelBuilder
     [MenuItem("PacStudent/Build Manual Level")]
     public static void BuildLevel()
     {
-        // 0. Clean up previous manual level
-        var existingLevel = GameObject.Find("ManualLevel");
-        if (existingLevel != null)
+        try
         {
-            GameObject.DestroyImmediate(existingLevel);
-        }
-
-        // 1. Create parent object
-        var levelParent = new GameObject("ManualLevel");
-
-        // 2. Load sprites
-        string wallsDir = "Assets/Art/Sprites/Walls";
-        var sprites = new Sprite[9]; // 1-indexed
-        sprites[1] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/1_outside_corner.png");
-        sprites[2] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/2_outside_wall.png");
-        sprites[3] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/3_inside_corner.png");
-        sprites[4] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/4_inside_wall.png");
-        sprites[5] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/5_pellet_spot.png");
-        sprites[6] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/6_power_spot.png");
-        sprites[7] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/7_t_junction.png");
-        sprites[8] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/8_ghost_exit.png");
-
-        // 3. Build Top-Left Quadrant
-        int height = levelMap.GetLength(0);
-        int width = levelMap.GetLength(1);
-        var origin = new Vector2(-width + 0.5f, height - 0.5f);
-
-        for (int y = 0; y < height; y++)
-        {
-            for (int x = 0; x < width; x++)
+            EditorUtility.DisplayProgressBar("Manual Level", "Cleaning previous level...", 0.02f);
+            // 0. Clean up previous manual level
+            var existingLevel = GameObject.Find("ManualLevel");
+            if (existingLevel != null)
             {
-                int tileId = levelMap[y, x];
-                if (tileId == 0) continue;
-
-                var sprite = sprites[tileId];
-                if (sprite == null) continue;
-
-                var go = new GameObject($"Tile_{x}_{y}");
-                go.transform.SetParent(levelParent.transform);
-                go.transform.position = origin + new Vector2(x, -y);
-                go.AddComponent<SpriteRenderer>().sprite = sprite;
-
-                // Manual rotation based on the specific level map layout
-                // This part is hardcoded for the 75% D requirement
-                float rotation = GetTileRotation(x, y, tileId);
-                go.transform.rotation = Quaternion.Euler(0, 0, rotation);
+                GameObject.DestroyImmediate(existingLevel);
             }
+
+            EditorUtility.DisplayProgressBar("Manual Level", "Creating parent...", 0.08f);
+            // 1. Create parent object
+            var levelParent = new GameObject("ManualLevel");
+
+            EditorUtility.DisplayProgressBar("Manual Level", "Loading sprites...", 0.15f);
+            // 2. Load sprites
+            string wallsDir = "Assets/Art/Sprites/Walls";
+            var sprites = new Sprite[9]; // 1-indexed
+            sprites[1] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/1_outside_corner.png");
+            sprites[2] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/2_outside_wall.png");
+            sprites[3] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/3_inside_corner.png");
+            sprites[4] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/4_inside_wall.png");
+            sprites[5] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/5_pellet_spot.png");
+            sprites[6] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/6_power_spot.png");
+            sprites[7] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/7_t_junction.png");
+            sprites[8] = AssetDatabase.LoadAssetAtPath<Sprite>($"{wallsDir}/8_ghost_exit.png");
+
+            // 3. Build Top-Left Quadrant
+            int height = levelMap.GetLength(0);
+            int width = levelMap.GetLength(1);
+            var origin = new Vector2(-width + 0.5f, height - 0.5f);
+
+            for (int y = 0; y < height; y++)
+            {
+                float rowProgress = 0.15f + (0.6f * (y / (float)height));
+                EditorUtility.DisplayProgressBar("Manual Level", $"Placing tiles row {y+1}/{height}...", rowProgress);
+
+                for (int x = 0; x < width; x++)
+                {
+                    int tileId = levelMap[y, x];
+                    if (tileId == 0) continue;
+
+                    var sprite = sprites[tileId];
+                    if (sprite == null) continue;
+
+                    var go = new GameObject($"Tile_{x}_{y}");
+                    go.transform.SetParent(levelParent.transform);
+                    go.transform.position = origin + new Vector2(x, -y);
+                    go.AddComponent<SpriteRenderer>().sprite = sprite;
+
+                    // Manual rotation based on the specific level map layout (75% D)
+                    float rotation = GetTileRotation(x, y, tileId);
+                    go.transform.rotation = Quaternion.Euler(0, 0, rotation);
+                }
+            }
+
+            EditorUtility.DisplayProgressBar("Manual Level", "Mirroring to full level...", 0.85f);
+            // 4. Mirror to create full level
+            Mirror(levelParent, origin, width, height);
+
+            EditorUtility.DisplayProgressBar("Manual Level", "Done", 0.98f);
+            Debug.Log("Manual level built successfully!");
         }
-
-        // 4. Mirror to create full level
-        Mirror(levelParent, origin, width, height);
-
-        Debug.Log("Manual level built successfully!");
+        finally
+        {
+            EditorUtility.ClearProgressBar();
+        }
     }
 
     private static float GetTileRotation(int x, int y, int tileId)
@@ -118,10 +133,16 @@ public static class ManualLevelBuilder
 
     private static void Mirror(GameObject parent, Vector2 origin, int width, int height)
     {
-        // Mirror Horizontally for Top-Right
-        for (int i = 0; i < parent.transform.childCount; i++)
+        // IMPORTANT: snapshot originals before instantiating, to avoid iterating over newly created children
+        var originalsH = new List<Transform>();
+        foreach (Transform child in parent.transform)
         {
-            var original = parent.transform.GetChild(i);
+            originalsH.Add(child);
+        }
+
+        // Mirror Horizontally for Top-Right (from the snapshot only)
+        foreach (var original in originalsH)
+        {
             // Don't mirror the center column (T-junctions)
             if (Mathf.Approximately(original.transform.position.x, origin.x + width - 1))
                 continue;
@@ -133,12 +154,17 @@ public static class ManualLevelBuilder
             mirrored.transform.localScale = new Vector3(-1, 1, 1);
         }
 
-        // Mirror Vertically for Bottom half
-        int childCount = parent.transform.childCount;
-        for (int i = 0; i < childCount; i++)
+        // Now snapshot again for vertical mirroring (includes both original and H-mirrored children)
+        var originalsV = new List<Transform>();
+        foreach (Transform child in parent.transform)
         {
-            var original = parent.transform.GetChild(i);
-             // Don't mirror the bottom row of the top half
+            originalsV.Add(child);
+        }
+
+        // Mirror Vertically for Bottom half (from the snapshot only)
+        foreach (var original in originalsV)
+        {
+            // Don't mirror the bottom row of the top half
             if (Mathf.Approximately(original.transform.position.y, origin.y - height + 1))
                 continue;
 
