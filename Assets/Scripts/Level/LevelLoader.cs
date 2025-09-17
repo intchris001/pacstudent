@@ -210,11 +210,20 @@ namespace PacmanGame.Level
                     switch (c)
                     {
                         case 's':
-                        case 'e': // also place standard pellet on empty walkable tiles
                             if (pelletPrefab != null)
                             {
                                 var go = Instantiate(pelletPrefab, wp, Quaternion.identity, collectiblesParent);
                                 go.name = $"Pellet_{x}_{y}"; go.SetActive(true);
+                                pellets[new Vector2Int(x, y)] = go;
+                            }
+                            else
+                            {
+                                // Fallback: spawn a simple sprite-based pellet using configured sprites
+                                var go = new GameObject($"Pellet_{x}_{y}");
+                                go.transform.SetParent(collectiblesParent, false);
+                                go.transform.position = wp;
+                                var sr = go.AddComponent<SpriteRenderer>();
+                                sr.sprite = s5_PelletSpot != null ? s5_PelletSpot : null;
                                 pellets[new Vector2Int(x, y)] = go;
                             }
                             break;
@@ -223,6 +232,15 @@ namespace PacmanGame.Level
                             {
                                 var go = Instantiate(powerPelletPrefab, wp, Quaternion.identity, collectiblesParent);
                                 go.name = $"Power_{x}_{y}"; go.SetActive(true);
+                                powerPellets[new Vector2Int(x, y)] = go;
+                            }
+                            else
+                            {
+                                var go = new GameObject($"Power_{x}_{y}");
+                                go.transform.SetParent(collectiblesParent, false);
+                                go.transform.position = wp;
+                                var sr = go.AddComponent<SpriteRenderer>();
+                                sr.sprite = s6_PowerSpot != null ? s6_PowerSpot : null;
                                 powerPellets[new Vector2Int(x, y)] = go;
                             }
                             break;

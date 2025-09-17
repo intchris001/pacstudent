@@ -92,6 +92,8 @@ namespace PacmanGame.Player
                 {
                     currentDir = Dir.None; // Stop if blocked
                     UpdateSprite();
+                    // Optional feedback: wall bump SFX
+                    PacmanGame.Audio.AudioManager.Instance?.PlaySfxWall();
                 }
 
                 // Set next target if we are moving

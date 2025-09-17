@@ -1,9 +1,11 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using PacmanGame.Level;
 using PacmanGame.Player;
 using PacmanGame.Ghosts;
 using PacmanGame.Audio;
+using PacmanGame.UI;
 
 namespace PacmanGame.Core
 {
@@ -16,6 +18,7 @@ namespace PacmanGame.Core
         public int pointsPellet = 10;
         public int pointsPowerPellet = 50;
         public int pointsGhostBase = 200; // 200, 400, 800, 1600 chain
+        public int pointsFruit = 100;
         public float frightenedDuration = 6f;
 
         [Header("Spawns")]
@@ -27,6 +30,7 @@ namespace PacmanGame.Core
         public int lives = 0;
         public int ghostsEatenInChain = 0;
         private float frightenedTimer = 0f;
+        private bool levelCompleting = false;
 
         private PacmanController pacman;
 
@@ -45,6 +49,12 @@ namespace PacmanGame.Core
 
         private void Start()
         {
+            // Ensure minimal HUD exists
+            if (FindObjectOfType<HUDController>() == null)
+            {
+                new GameObject("HUD_Bootstrapper").AddComponent<HUDBootstrapper>();
+            }
+
             pacman = FindObjectOfType<PacmanController>();
             if (pacman == null)
             {
@@ -75,7 +85,33 @@ namespace PacmanGame.Core
                 }
             }
 
+            // Level completion check
+            var loader = LevelLoader.Instance;
+            if (!levelCompleting && loader != null && loader.RemainingCollectibles == 0)
+            {
+                StartCoroutine(LevelCompleteRoutine());
+            }
+
             UpdateMusicState();
+        }
+
+        private IEnumerator LevelCompleteRoutine()
+        {
+            levelCompleting = true;
+            // Pause ghosts by setting their speeds to 0 temporarily
+            foreach (var g in ghosts) if (g != null) g.enabled = false;
+            // Small delay
+            yield return new WaitForSeconds(2f);
+
+            // Reset round and rebuild pellets
+            var loader = LevelLoader.Instance;
+            if (loader != null)
+            {
+                loader.LoadAndBuild();
+            }
+            foreach (var g in ghosts) if (g != null) g.enabled = true;
+            ResetRound();
+            levelCompleting = false;
         }
 
         private void UpdateMusicState()
@@ -117,7 +153,6 @@ namespace PacmanGame.Core
         public void AddScore(int points)
         {
             score += points;
-            // TODO: Update UI
         }
 
         public void OnPelletConsumed(bool power)
@@ -128,6 +163,11 @@ namespace PacmanGame.Core
                 StartFrightenedMode();
             }
             AudioManager.Instance?.PlaySfxPellet();
+        }
+
+        public void OnFruitConsumed(int points)
+        {
+            AddScore(points);
         }
 
         public void OnPacmanCollidesWithGhost(GhostController ghost)
@@ -193,7 +233,6 @@ namespace PacmanGame.Core
         private void GameOver()
         {
             Debug.Log("Game Over");
-            // TODO: Show UI and allow restart
             // For now, restart level
             lives = startingLives;
             score = 0;

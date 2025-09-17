@@ -14,6 +14,10 @@ namespace PacmanGame.Ghosts
         public float frightenedSpeed = 4.2f;
         public float eatenSpeed = 8f;
 
+        [Header("House/Release")]
+        public bool lockedAtStart = true; // stay in house until released by GameManager
+        private bool locked = false;
+
         [Header("Targets (grid coords)")]
         public Vector2Int scatterCorner = new Vector2Int(0, 0);
 
@@ -121,7 +125,18 @@ namespace PacmanGame.Ghosts
             if (CurrentState == GhostState.Frightened) speed = frightenedSpeed;
             else if (CurrentState == GhostState.Eaten) speed = eatenSpeed;
 
-            transform.position = Vector2.MoveTowards(transform.position, targetWorldPos, speed * Time.deltaTime);
+            // Manual step toward target (no MoveTowards), frame-rate independent linear motion
+            Vector2 pos = transform.position;
+            Vector2 delta = targetWorldPos - pos;
+            float step = speed * Time.deltaTime;
+            if (delta.magnitude <= step)
+            {
+                transform.position = targetWorldPos;
+            }
+            else
+            {
+                transform.position = (Vector2)pos + delta.normalized * step;
+            }
         }
 
         private void UpdateTimers()
