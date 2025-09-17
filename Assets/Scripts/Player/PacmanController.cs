@@ -117,8 +117,18 @@ namespace PacmanGame.Player
                 }
             }
 
-            // Always move towards the current target
-            transform.position = Vector2.MoveTowards(transform.position, targetWorldPos, moveSpeed * Time.deltaTime);
+            // Always move towards the current target (manual step, no MoveTowards per A3 rules)
+            Vector2 pos = transform.position;
+            Vector2 delta = targetWorldPos - pos;
+            float step = moveSpeed * Time.deltaTime;
+            if (delta.magnitude <= step)
+            {
+                transform.position = targetWorldPos;
+            }
+            else
+            {
+                transform.position = (Vector2)pos + delta.normalized * step;
+            }
 
             // Animate sprite based on direction and time
             UpdateAnimation(currentDir);
@@ -210,7 +220,9 @@ namespace PacmanGame.Player
                 animationFrame = (animationFrame + 1) % frames.Length;
             }
             spriteRenderer.sprite = frames[animationFrame];
-                private void ConsumeNearbyPellets()
+        }
+
+        private void ConsumeNearbyPellets()
         {
             if (level == null || grid == null) return;
             // Consume on current cell
@@ -226,8 +238,6 @@ namespace PacmanGame.Player
                 GameManager.Instance?.OnPelletConsumed(power2);
             }
         }
-    }
-}
 
         private Sprite[] GetFramesForDir(Dir dir)
         {

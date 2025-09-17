@@ -17,6 +17,9 @@ namespace PacmanGame.Level
         [Tooltip("7 - T junction")] public Sprite s7_TJunction;
         [Tooltip("8 - Ghost exit wall")][SerializeField] private Sprite s8_GhostExit;
 
+        [Header("Animators")]
+        [Tooltip("Animator for power pellet flashing")] public RuntimeAnimatorController powerPelletAnimator;
+
         [Header("Generation Settings")]
         public float tileWorldSize = 1f; // Each sprite's size in world units
         public Vector2 topLeftWorld = Vector2.zero; // Where to place [0,0]
@@ -137,13 +140,6 @@ namespace PacmanGame.Level
                     Set(my, x, MirrorTile(src, horizontal:false));
                 }
             }
-            // A3-SPECIFIC: Create horizontal tunnels after mirroring
-            int tunnelY = 14; // The Y-index of the tunnel in the full map
-            if (tunnelY < fullH)
-            {
-                Set(tunnelY, 0, 0); // Left tunnel entrance
-                Set(tunnelY, fullW - 1, 0); // Right tunnel entrance
-            }
         }
 
         private int MirrorTile(int v, bool horizontal)
@@ -172,13 +168,20 @@ namespace PacmanGame.Level
                     go.transform.rotation = Quaternion.Euler(0, 0, rotZ);
                     go.transform.position = GridToWorld(x, y);
 
-                        // Add a solid collider for wall-like tiles so physics queries can detect them
-                        if (v == 1 || v == 2 || v == 3 || v == 4 || v == 7 || v == 8)
-                        {
-                            var bc = go.AddComponent<BoxCollider2D>();
-                            bc.isTrigger = false; // treat as solid
-                            bc.size = new Vector2(tileWorldSize * 0.98f, tileWorldSize * 0.98f);
-                        }
+                    // Animator showcase for power pellet flashing (A3 65% requirement)
+                    if (v == 6 && powerPelletAnimator != null)
+                    {
+                        var anim = go.AddComponent<Animator>();
+                        anim.runtimeAnimatorController = powerPelletAnimator;
+                    }
+
+                    // Add a solid collider for wall-like tiles so physics queries can detect them
+                    if (v == 1 || v == 2 || v == 3 || v == 4 || v == 7 || v == 8)
+                    {
+                        var bc = go.AddComponent<BoxCollider2D>();
+                        bc.isTrigger = false; // treat as solid
+                        bc.size = new Vector2(tileWorldSize * 0.98f, tileWorldSize * 0.98f);
+                    }
                 }
             }
         }
