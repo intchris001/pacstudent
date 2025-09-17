@@ -88,6 +88,17 @@ public static class ManualLevelBuilder
             // 4. Mirror to create full level
             Mirror(levelParent, origin, width, height);
 
+            // 5. Auto-fit camera to show full manual level in Game view
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                var fitter = cam.GetComponent<PacmanGame.Util.CameraFitToBounds>();
+                if (fitter == null) fitter = cam.gameObject.AddComponent<PacmanGame.Util.CameraFitToBounds>();
+                fitter.rootName = "ManualLevel";
+                fitter.paddingWorld = 0.6f;
+                fitter.FitNow();
+            }
+
             EditorUtility.DisplayProgressBar("Manual Level", "Done", 0.98f);
             Debug.Log("Manual level built successfully!");
         }

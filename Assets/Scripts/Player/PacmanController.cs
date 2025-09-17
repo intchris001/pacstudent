@@ -35,6 +35,9 @@ namespace PacmanGame.Player
         private Vector2Int currentCell; // grid cell we're moving from/to
         private bool initialized = false;
 
+        // SFX pacing for movement (avoid spamming every frame)
+        private float moveSfxTimer = 0f;
+
         private void Start()
         {
             TryInit();
@@ -121,6 +124,7 @@ namespace PacmanGame.Player
             Vector2 pos = transform.position;
             Vector2 delta = targetWorldPos - pos;
             float step = moveSpeed * Time.deltaTime;
+            bool wasMoving = (currentDir != Dir.None);
             if (delta.magnitude <= step)
             {
                 transform.position = targetWorldPos;
@@ -128,6 +132,21 @@ namespace PacmanGame.Player
             else
             {
                 transform.position = (Vector2)pos + delta.normalized * step;
+            }
+
+            // SFX for movement (paced)
+            if (wasMoving)
+            {
+                moveSfxTimer += Time.deltaTime;
+                if (moveSfxTimer >= 0.3f)
+                {
+                    PacmanGame.Audio.AudioManager.Instance?.PlaySfxMove();
+                    moveSfxTimer = 0f;
+                }
+            }
+            else
+            {
+                moveSfxTimer = 0f;
             }
 
             // Animate sprite based on direction and time

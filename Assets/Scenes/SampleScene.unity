@@ -405,6 +405,7 @@ MonoBehaviour:
   s6_PowerSpot: {fileID: -6364675484066558929, guid: 7556a08fdc56c4cbcb60c15a816f69d6, type: 3}
   s7_TJunction: {fileID: -4405436575640020392, guid: 3debee944907f480f9eeb97a4c77ae14, type: 3}
   s8_GhostExit: {fileID: 1319705059966676860, guid: f9de0f20a9c2c4ae9aee5d5e71f78568, type: 3}
+  powerPelletAnimator: {fileID: 9100000, guid: cf58f9be254844b75b8cbe7d2d10dd2c, type: 2}
   tileWorldSize: 1
   topLeftWorld: {x: -13.5, y: 14}
   manualLevelRootName: ManualLevel
