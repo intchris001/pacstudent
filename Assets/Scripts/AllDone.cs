@@ -228,7 +228,7 @@ public class LevelGenerationRuntime : MonoBehaviour
 
     void Generate()
     {
-        var existing = GameObject.Find("ProceduralLevel"); if (existing) Destroy(existing);
+        var existing = GameObject.Find("ManualLevel"); if (existing) Destroy(existing);
         var go = new GameObject("ProceduralLevel"); root = go.transform;
 #if UNITY_EDITOR
         AutoAssignSprites();
@@ -344,7 +344,7 @@ public static class AllDoneConfigurator
                     break;
                 case "100HD_ProceduralGameplay":
                     // 该场景在进入播放前应当先显示手工关卡，按下播放后由生成器删除并程序化重建
-                    BuildManualLevelStatic();
+                    // BuildManualLevelStatic(); // Per user request, this scene will now start empty.
                     AddComponentByName(new GameObject("LevelGenerationManager"), "LevelGenerationRuntime");
                     SetupGameplayMusic();
                     break;
@@ -435,6 +435,8 @@ public static class AllDoneConfigurator
                 miBuild.Invoke(temp, null);
                 miGen.Invoke(temp, null);
             }
+            var generatedLevel = GameObject.Find("ProceduralLevel");
+            if (generatedLevel != null) generatedLevel.name = "ManualLevel";
             Object.DestroyImmediate(temp.gameObject);
 #endif
         }
