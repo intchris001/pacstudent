@@ -230,9 +230,7 @@ public class LevelGenerationRuntime : MonoBehaviour
     {
         var existing = GameObject.Find("ManualLevel"); if (existing) Destroy(existing);
         var go = new GameObject("ProceduralLevel"); root = go.transform;
-#if UNITY_EDITOR
-        AutoAssignSprites();
-#endif
+
         int H = fullMap.GetLength(0), W = fullMap.GetLength(1);
         for (int y = 0; y < H; y++)
         {
@@ -247,6 +245,7 @@ public class LevelGenerationRuntime : MonoBehaviour
                 cell.transform.rotation = Quaternion.Euler(0, 0, ComputeRotationFor(x, y, v));
             }
         }
+        FrameCameraToLevel();
     }
 
     float ComputeRotationFor(int x, int y, int v)
@@ -282,8 +281,27 @@ public class LevelGenerationRuntime : MonoBehaviour
         _ => null
     };
 
+    void FrameCameraToLevel()
+    {
+        var cam = Camera.main;
+        if (cam == null || root == null || root.childCount == 0) return;
+
+        var renderers = root.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0) return;
+
+        Bounds b = new Bounds(renderers[0].bounds.center, Vector3.zero);
+        foreach (var r in renderers) b.Encapsulate(r.bounds);
+
+        float worldWidth = b.size.x + 2f; // Add padding
+        float worldHeight = b.size.y + 2f; // Add padding
+
+        cam.transform.position = new Vector3(b.center.x, b.center.y, cam.transform.position.z);
+        cam.orthographicSize = Mathf.Max(worldHeight * 0.5f, (worldWidth / cam.aspect) * 0.5f);
+    }
+
 #if UNITY_EDITOR
-    void AutoAssignSprites()
+    // This version is for the editor script, which can use AssetDatabase
+    public void AutoAssignSpritesFromEditor()
     {
         if (s1_OutsideCorner == null) s1_OutsideCorner = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Walls/1_outside_corner.png");
         if (s2_OutsideWall == null) s2_OutsideWall = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Walls/2_outside_wall.png");
@@ -343,9 +361,21 @@ public static class AllDoneConfigurator
                     SetupGameplayMusic();
                     break;
                 case "100HD_ProceduralGameplay":
-                    // 该场景在进入播放前应当先显示手工关卡，按下播放后由生成器删除并程序化重建
-                    // BuildManualLevelStatic(); // Per user request, this scene will now start empty.
-                    AddComponentByName(new GameObject("LevelGenerationManager"), "LevelGenerationRuntime");
+                    // Per user request, this scene will start empty.
+                    // We still need to create the manager and manually assign its sprite references so it can generate the level at runtime.
+                    var lgrGo = new GameObject("LevelGenerationManager");
+                    var lgr = AddComponentByName(lgrGo, "LevelGenerationRuntime") as LevelGenerationRuntime;
+                    if (lgr != null)
+                    {
+                        lgr.s1_OutsideCorner = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Walls/1_outside_corner.png");
+                        lgr.s2_OutsideWall = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Walls/2_outside_wall.png");
+                        lgr.s3_InsideCorner = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Walls/3_inside_corner.png");
+                        lgr.s4_InsideWall = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Walls/4_inside_wall.png");
+                        lgr.s5_PelletSpot = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Items/pellet.png");
+                        lgr.s6_PowerSpot = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Items/power_pellet.png");
+                        lgr.s7_TJunction = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Walls/7_t_junction.png");
+                        lgr.s8_GhostExit = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Walls/8_ghost_exit.png");
+                    }
                     SetupGameplayMusic();
                     break;
                 default:
@@ -428,6 +458,8 @@ public static class AllDoneConfigurator
         {
 #if UNITY_EDITOR
             var temp = new GameObject("Temp_LevelGen").AddComponent<LevelGenerationRuntime>();
+            // Ensure sprites are assigned in Editor so generated tiles are visible
+            temp.AutoAssignSpritesFromEditor();
             var miBuild = typeof(LevelGenerationRuntime).GetMethod("BuildFullMap", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             var miGen = typeof(LevelGenerationRuntime).GetMethod("Generate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             if (miBuild != null && miGen != null)
